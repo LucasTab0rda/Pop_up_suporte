@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Conferência de O.S. — Implantar</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /*
+   Electron (janela sem moldura): a barra só pode usar -webkit-app-region: drag.
+   O restante deve ser explicitamente no-drag para cliques/teclado nos inputs funcionarem sempre.
+   */
+  html, body {
+    -webkit-app-region: no-drag;
+  }
+
+  /* Toda a área de conteúdo interativa: nunca arrastar janela (evita campo “travado” no Electron). */
+  .body,
+  .steps,
+  .stats-bar,
+  .body .screen,
+  .body input,
+  .body textarea,
+  .body button,
+  .modal-root {
+    -webkit-app-region: no-drag;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0b1e3d;
+    color: #cde4ff;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header — drag region ── */
+  .header {
+    background: #071428;
+    border-bottom: 1px solid #1a3460;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    -webkit-app-region: drag;
+    flex-shrink: 0;
+  }
+  .header-left {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .header-app-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #cde4ff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    user-select: none;
+  }
+  .win-controls { display: flex; gap: 6px; -webkit-app-region: no-drag; align-items: center; }
+  .win-btn {
+    width: 28px; height: 28px; border-radius: 6px;
+    border: 1px solid #1a3460; background: #0f2548;
+    color: #4a7ab5; cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+  }
+  .win-btn:hover { background: #1a3460; color: #cde4ff; }
+  .win-btn.close:hover { background: #8b0000; color: #fff; border-color: #8b0000; }
+  .user-badge {
+    display: flex; align-items: center; gap: 5px;
+    background: rgba(0,180,216,.1); border: 1px solid rgba(0,180,216,.3);
+    border-radius: 20px; padding: 3px 10px 3px 4px;
+    font-size: 11px; color: #00d6ff; cursor: pointer;
+    -webkit-app-region: no-drag;
+  }
+  .user-badge-avatar {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #0f2548;
+    border: 1px solid rgba(0,180,216,.35);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #00d6ff;
+    flex-shrink: 0;
+  }
+
+  /* ── Steps ── */
+  .steps {
+    display: flex; align-items: center; gap: 6px; padding: 12px 16px 0; flex-shrink: 0;
+    -webkit-app-region: no-drag;
+  }
+  .sd {
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 1.5px solid #1a3460;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; color: #4a7ab5;
+    background: #0f2548; transition: all .2s; flex-shrink: 0;
+  }
+  .sd.active { background: #00b4d8; color: #fff; border-color: #00b4d8; box-shadow: 0 0 8px rgba(0,180,216,.4); }
+  .sd.done   { background: #0a9e74; color: #fff; border-color: #0a9e74; }
+  .sl { flex: 1; height: 1px; background: #1a3460; }
+
+  /* ── Scrollable body — NEVER has drag region ── */
+  .body { padding: 14px 16px; overflow-y: auto; flex: 1; -webkit-app-region: no-drag; }
+  .body::-webkit-scrollbar { width: 4px; }
+  .body::-webkit-scrollbar-track { background: #0b1e3d; }
+  .body::-webkit-scrollbar-thumb { background: #1a3460; border-radius: 4px; }
+
+  .screen { display: none; }
+  .screen.visible { display: block; }
+  .stitle {
+    font-size: 10px; font-weight: 600; color: #4a7ab5;
+    text-transform: uppercase; letter-spacing: .07em;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+  }
+
+  /* ── Login ── */
+  .login-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 24px 6px; gap: 18px;
+  }
+  .login-wrap img.mascot-lg {
+    width: 80px; height: 80px; border-radius: 50%;
+    border: 3px solid #00b4d8;
+    box-shadow: 0 0 24px rgba(0,180,216,.3); object-fit: cover;
+  }
+  .login-title { font-size: 16px; font-weight: 600; color: #cde4ff; text-align: center; }
+  .login-sub   { font-size: 12px; color: #4a7ab5; text-align: center; margin-top: 3px; }
+  .login-field { width: 100%; }
+  .login-field label { font-size: 12px; color: #4a7ab5; display: block; margin-bottom: 6px; }
+
+  /* ── All inputs — NEVER drag, always editable ── */
+  input[type="text"] {
+    width: 100%;
+    background: #0f2548; border: 1.5px solid #1a3460; border-radius: 8px;
+    padding: 10px 13px; color: #cde4ff; font-size: 14px; outline: none;
+    -webkit-app-region: no-drag;
+    -webkit-user-select: text;
+    user-select: text;
+    cursor: text;
+  }
+  input[type="text"]:focus { border-color: #00b4d8; }
+  input[type="text"]::placeholder { color: #2a4a7a; }
+  input[type="password"] {
+    width: 100%;
+    background: #0f2548;
+    border: 1.5px solid #1a3460;
+    border-radius: 8px;
+    padding: 10px 13px;
+    color: #cde4ff;
+    font-size: 14px;
+    outline: none;
+    -webkit-app-region: no-drag;
+    -webkit-user-select: text;
+    user-select: text;
+    cursor: text;
+  }
+  input[type="password"]:focus { border-color: #00b4d8; }
+  input[type="password"]::placeholder { color: #2a4a7a; }
+  #tec {
+    position: relative;
+    z-index: 5;
+    pointer-events: auto;
+    -webkit-app-region: no-drag !important;
+  }
+
+  /* ── Type cards ── */
+  .tgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .tcard {
+    border: 1.5px solid #1a3460; border-radius: 10px;
+    padding: 16px 10px; cursor: pointer; text-align: center;
+    transition: all .15s; background: #0f2548;
+  }
+  .tcard:hover { border-color: #00b4d8; background: #122d5a; }
+  .tcard.sel   { border-color: #00b4d8; background: #0d3060; box-shadow: 0 0 10px rgba(0,180,216,.2); }
+  .tcard .ic   { font-size: 20px; margin-bottom: 6px; }
+  .tcard .tt   { font-size: 13px; font-weight: 500; color: #cde4ff; }
+  .tcard .sb   { font-size: 11px; color: #4a7ab5; margin-top: 2px; }
+  .tcard.sel .tt { color: #00d6ff; }
+
+  /* ── Field group ── */
+  .fg { margin-bottom: 14px; }
+  .fg label { font-size: 11px; color: #4a7ab5; display: block; margin-bottom: 5px; }
+
+  /* ── Checkboxes ── */
+  .cgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+  .ci {
+    display: flex; align-items: flex-start; gap: 7px;
+    padding: 8px 9px; border: 1px solid #1a3460; border-radius: 7px;
+    cursor: pointer; transition: all .1s; background: #0f2548;
+  }
+  .ci:hover { border-color: #00b4d8; background: #122d5a; }
+  .ci input[type="checkbox"] {
+    margin-top: 2px; flex-shrink: 0; cursor: pointer;
+    accent-color: #00b4d8;
+    -webkit-app-region: no-drag;
+  }
+  .ci .ct { font-size: 11px; color: #a0c4e8; line-height: 1.4; }
+  .badge-obrig {
+    font-size: 9px; font-weight: 600; color: #ffd166;
+    background: rgba(255,209,102,.15); border-radius: 3px;
+    padding: 1px 4px; border: 1px solid rgba(255,209,102,.2);
+  }
+  .ci.checked { background: rgba(0,180,216,.08); border-color: rgba(0,180,216,.5); }
+  .ci.checked .ct { color: #00d6ff; }
+
+  /* ── Buttons ── */
+  .btn {
+    width: 100%; padding: 9px; border-radius: 7px;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: all .15s; margin-top: 4px; border: none;
+    -webkit-app-region: no-drag;
+  }
+  .bpri { background: linear-gradient(135deg,#00b4d8,#0077b6); color: #fff; }
+  .bpri:hover { opacity: .9; }
+  .bsec { background: #0f2548; color: #4a7ab5; border: 1.5px solid #1a3460; }
+  .bsec:hover { border-color: #00b4d8; color: #cde4ff; }
+  .badge {
+    font-size: 10px; background: rgba(0,180,216,.2); color: #00d6ff;
+    border-radius: 20px; padding: 1px 7px; margin-left: 4px;
+    border: 1px solid rgba(0,180,216,.3);
+  }
+
+  /* ── Result ── */
+  .rbox {
+    background: #0f2548; border: 1px solid #1a3460; border-radius: 8px;
+    padding: 12px; font-size: 12px; line-height: 1.8; color: #a0c4e8;
+    margin: 10px 0; white-space: pre-wrap; word-break: break-word;
+    max-height: 260px; overflow-y: auto;
+    -webkit-user-select: text; user-select: text;
+  }
+  .rbox::-webkit-scrollbar { width: 3px; }
+  .rbox::-webkit-scrollbar-thumb { background: #1a3460; border-radius: 3px; }
+  .cbtn {
+    background: linear-gradient(135deg,#0a9e74,#057a5a); color: #fff;
+    border: none; width: 100%; padding: 10px; border-radius: 7px;
+    font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s;
+    -webkit-app-region: no-drag;
+  }
+  .cbtn:hover { opacity: .9; }
+  .success-icon { font-size: 28px; text-align: center; margin: 6px 0 2px; }
+  .success-msg  { text-align: center; font-size: 12px; color: #0a9e74; margin-bottom: 10px; }
+  .row2 { display: grid; grid-template-columns: auto 1fr; gap: 8px; margin-top: 10px; }
+
+  /* ── Contador / histórico ── */
+  .stats-bar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 16px 10px;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: #4a7ab5;
+    line-height: 1.35;
+    -webkit-app-region: no-drag;
+    border-bottom: 1px solid rgba(26, 52, 96, 0.35);
+  }
+  .stats-bar strong { color: #00d6ff; font-weight: 600; }
+  .hist-mini-btn {
+    flex-shrink: 0;
+    font-size: 11px;
+    padding: 5px 11px;
+    border-radius: 6px;
+    border: 1px solid #1a3460;
+    background: #0f2548;
+    color: #4a7ab5;
+    cursor: pointer;
+    transition: all 0.15s;
+    -webkit-app-region: no-drag;
+  }
+  .hist-mini-btn:hover { border-color: #00b4d8; color: #cde4ff; }
+
+  .modal-root {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    -webkit-app-region: no-drag;
+  }
+  .modal-root.visible { display: flex; }
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 10, 25, 0.72);
+  }
+  .modal-dialog {
+    position: relative;
+    z-index: 1;
+    width: min(440px, 100%);
+    max-height: min(520px, 86vh);
+    background: #071428;
+    border: 1px solid #1a3460;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  }
+  .modal-hd {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid #1a3460;
+    font-size: 13px;
+    font-weight: 600;
+    color: #cde4ff;
+  }
+  .modal-x {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid #1a3460;
+    background: #0f2548;
+    color: #4a7ab5;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .modal-x:hover { border-color: #00b4d8; color: #cde4ff; }
+  .modal-body {
+    padding: 12px 14px 14px;
+    overflow-y: auto;
+    font-size: 12px;
+    color: #a0c4e8;
+  }
+  .modal-body::-webkit-scrollbar { width: 4px; }
+  .modal-body::-webkit-scrollbar-thumb { background: #1a3460; border-radius: 4px; }
+  .cked-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .cked-text {
+    flex: 1; min-width: 0; background: #0f2548; border: 1px solid #1a3460; border-radius: 6px;
+    color: #e6f3ff; font-size: 12px; padding: 6px 8px;
+  }
+  .cked-text:focus { outline: none; border-color: #00b4d8; }
+  .cked-obr { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #4a7ab5; white-space: nowrap; flex-shrink: 0; }
+  .cked-mini {
+    width: 26px; height: 26px; border-radius: 6px; border: 1px solid #1a3460; background: #0f2548;
+    color: #4a7ab5; cursor: pointer; font-size: 12px; flex-shrink: 0;
+  }
+  .cked-mini:hover { border-color: #00b4d8; color: #cde4ff; }
+  .cked-mini:disabled { opacity: .3; cursor: default; }
+  .cked-del:hover { border-color: #8b0000; color: #ff8080; }
+  .hist-block {
+    background: #0f2548;
+    border: 1px solid #1a3460;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+  .hist-block h4 {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #4a7ab5;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .hist-line { margin: 4px 0; line-height: 1.45; }
+  .hist-line.muted, .hist-block .muted { color: #4a7ab5; font-size: 11px; }
+  .hist-empty { text-align: center; color: #4a7ab5; padding: 24px 8px; }
+
+  /* ── Modo conferência (pendências x conformidade) ── */
+  .mode-strip {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .mode-chip {
+    flex: 1;
+    padding: 9px 8px;
+    border-radius: 8px;
+    border: 1.5px solid #1a3460;
+    background: #0f2548;
+    color: #4a7ab5;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    line-height: 1.35;
+    text-align: center;
+    transition: all 0.15s;
+    -webkit-app-region: no-drag;
+  }
+  .mode-chip:hover { border-color: #00b4d8; color: #cde4ff; }
+  .mode-chip.sel {
+    border-color: #00b4d8;
+    background: rgba(0, 180, 216, 0.12);
+    color: #00d6ff;
+    box-shadow: 0 0 8px rgba(0, 180, 216, 0.18);
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <span class="header-app-title">Conferência de O.S.</span>
+  </div>
+  <div class="win-controls">
+    <button class="win-btn" id="checklist-btn" style="display:none" onclick="openChecklistModal()" title="Editar checklist">⚙</button>
+    <div class="user-badge" id="user-badge" style="display:none" onclick="logout()" title="Trocar usuário">
+      <span class="user-badge-avatar" id="user-badge-avatar"></span>
+      <span id="user-badge-name"></span>
+    </div>
+    <button class="win-btn" onclick="hideWin()">─</button>
+    <button class="win-btn close" onclick="hideWin()">✕</button>
+  </div>
+</div>
+
+<!-- Steps bar (oculto no login) -->
+<div class="steps" id="steps-bar" style="display:none">
+  <div class="sd active" id="d1">1</div>
+  <div class="sl"></div>
+  <div class="sd" id="d2">2</div>
+  <div class="sl"></div>
+  <div class="sd" id="d3">3</div>
+</div>
+
+<div class="stats-bar" id="stats-bar" style="display:none">
+  <span id="stats-summary">—</span>
+  <button type="button" class="hist-mini-btn" onclick="openHistModal()">Histórico</button>
+</div>
+
+<!-- Body -->
+<div class="body">
+
+  <!-- S0: Login (usuário local + senha) -->
+  <div class="screen visible" id="s0">
+    <div class="login-wrap">
+      <img class="mascot-lg" src="./assets/mascot.jpg" alt="" />
+      <div style="text-align:center">
+        <div class="login-title">Conferência de O.S.</div>
+        <div class="login-sub">Implantar Telecom · acesso por operador</div>
+      </div>
+      <div id="panel-login" style="width:100%">
+        <div class="login-field">
+          <label>Usuário</label>
+          <input type="text" id="login-user" placeholder="Ex: maria.silva" autocomplete="username" />
+        </div>
+        <div class="login-field">
+          <label>Senha</label>
+          <input type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" />
+        </div>
+        <button type="button" class="btn bpri" style="width:100%;margin-top:0" onclick="doLogin()">Entrar →</button>
+        <button type="button" class="btn bsec" style="margin-top:10px" onclick="showRegisterPanel(true)">Cadastrar novo operador</button>
+      </div>
+      <div id="panel-register" style="display:none;width:100%">
+        <div class="login-field">
+          <label>Usuário (login único neste computador)</label>
+          <input type="text" id="reg-user" placeholder="Ex: joao.suporte" autocomplete="off" />
+        </div>
+        <div class="login-field">
+          <label>Nome para exibição nas conferências</label>
+          <input type="text" id="reg-display" placeholder="Ex: João Silva" autocomplete="name" />
+        </div>
+        <div class="login-field">
+          <label>Senha</label>
+          <input type="password" id="reg-pass1" placeholder="Mín. 4 caracteres" autocomplete="new-password" />
+        </div>
+        <div class="login-field">
+          <label>Confirmar senha</label>
+          <input type="password" id="reg-pass2" autocomplete="new-password" />
+        </div>
+        <button type="button" class="btn bpri" style="margin-top:0" onclick="doRegister()">Criar cadastro</button>
+        <button type="button" class="btn bsec" style="margin-top:10px" onclick="showRegisterPanel(false)">← Voltar ao login</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- S1: Tipo OS -->
+  <div class="screen" id="s1">
+    <div class="stitle">Tipo da O.S.</div>
+    <div class="tgrid">
+      <div class="tcard" id="ci-inst" onclick="sel('instalacao')">
+        <div class="ic">🔧</div>
+        <div class="tt">Instalação</div>
+        <div class="sb">Nova conexão</div>
+      </div>
+      <div class="tcard" id="ci-man" onclick="sel('manutencao')">
+        <div class="ic">🛠️</div>
+        <div class="tt">Manutenção</div>
+        <div class="sb">Reparo / revisão</div>
+      </div>
+    </div>
+    <button class="btn bpri" onclick="go2()">Continuar →</button>
+  </div>
+
+  <!-- S2: Técnico + modo (pendências / conformidade) -->
+  <div class="screen" id="s2">
+    <div class="fg">
+      <label>Nome do técnico</label>
+      <input type="text" id="tec" placeholder="Ex: João Silva" autocomplete="off" />
+    </div>
+    <div class="mode-strip">
+      <button type="button" class="mode-chip sel" id="mode-chip-pend" onclick="setModoOs(false)">
+        Pendências registradas
+      </button>
+      <button type="button" class="mode-chip" id="mode-chip-ok" onclick="setModoOs(true)">
+        Sem pendências · em conformidade
+      </button>
+    </div>
+    <div id="s2-zone-pend">
+      <div class="stitle">
+        Pendências identificadas
+        <span class="badge" id="cnt" style="display:none">0</span>
+      </div>
+      <div class="cgrid" id="chks"></div>
+    </div>
+    <div id="s2-zone-msg-ok" class="hist-block" style="display:none;margin-bottom:14px">
+      <h4>O.S. conforme aos parâmetros</h4>
+      <div class="hist-line">Neste modo serão registradas e copiadas as informações de conferência positiva.</div>
+    </div>
+    <div class="row2" style="margin-top:14px">
+      <button class="btn bsec" style="width:auto;padding:9px 14px" onclick="go1()">← Voltar</button>
+      <button class="btn bpri" onclick="go3()">Confirmar e copiar →</button>
+    </div>
+  </div>
+
+  <!-- S3: Resultado -->
+  <div class="screen" id="s3">
+    <div class="success-icon">✅</div>
+    <div class="success-msg">Texto copiado! Cole na observação da O.S.</div>
+    <div class="stitle">Texto gerado</div>
+    <div class="rbox" id="rtxt"></div>
+    <button class="cbtn" id="copy-again-btn" onclick="copyAgain()">Copiar novamente</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <button class="btn bsec" onclick="go2(true)">← Ajustar</button>
+      <button class="btn bpri" onclick="reset()">Nova conferência</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="modal-root" id="hist-modal" aria-hidden="true">
+  <div class="modal-backdrop" onclick="closeHistModal()"></div>
+  <div class="modal-dialog" role="dialog" aria-labelledby="hist-modal-title">
+    <div class="modal-hd">
+      <span id="hist-modal-title">Histórico · semanas (segunda a domingo)</span>
+      <button type="button" class="modal-x" onclick="closeHistModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <button type="button" class="btn bsec" style="width:auto;padding:8px" onclick="exportHistoryBackup()">Exportar backup</button>
+        <button type="button" class="btn bsec" style="width:auto;padding:8px" onclick="importHistoryBackup()">Importar backup</button>
+      </div>
+      <div id="hist-modal-body"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-root" id="checklist-modal" aria-hidden="true">
+  <div class="modal-backdrop" onclick="closeChecklistModal()"></div>
+  <div class="modal-dialog" role="dialog" aria-labelledby="checklist-modal-title">
+    <div class="modal-hd">
+      <span id="checklist-modal-title">Editar checklist</span>
+      <button type="button" class="modal-x" onclick="closeChecklistModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="mode-strip" style="margin-bottom:10px">
+        <button type="button" class="mode-chip sel" id="cked-tab-inst" onclick="setChecklistEditorTab('instalacao')">Instalação</button>
+        <button type="button" class="mode-chip" id="cked-tab-man" onclick="setChecklistEditorTab('manutencao')">Manutenção</button>
+      </div>
+      <div id="checklist-editor-list"></div>
+      <button type="button" class="btn bsec" style="margin-top:10px" onclick="addChecklistItem()">+ Adicionar item</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">
+        <button type="button" class="btn bsec" onclick="closeChecklistModal()">Cancelar</button>
+        <button type="button" class="btn bpri" onclick="saveChecklistEdits()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let items = { instalacao: [], manutencao: [] };
+
+async function loadChecklist() {
+  const api = window.electronAPI;
+  if (!api || typeof api.checklistGet !== 'function') return;
+  try {
+    const data = await api.checklistGet();
+    if (data && Array.isArray(data.instalacao) && Array.isArray(data.manutencao)) {
+      items = data;
+    }
+  } catch {}
+}
+loadChecklist();
+
+let tipo=null, operador='', lastText='';
+let conferenciaSemPendencias=false;
+let currentUserId=null;
+
+function setModoOs(semPend) {
+  conferenciaSemPendencias = !!semPend;
+  document.getElementById('mode-chip-pend').classList.toggle('sel', !conferenciaSemPendencias);
+  document.getElementById('mode-chip-ok').classList.toggle('sel', conferenciaSemPendencias);
+  document.getElementById('s2-zone-pend').style.display = conferenciaSemPendencias ? 'none' : 'block';
+  document.getElementById('s2-zone-msg-ok').style.display = conferenciaSemPendencias ? 'block' : 'none';
+}
+
+function syncPendBadge() {
+  if(!tipo || conferenciaSemPendencias) return;
+  const total=items[tipo].filter((_,j)=>document.getElementById('ck'+j)?.checked).length;
+  const badge=document.getElementById('cnt');
+  badge.style.display=total>0?'inline':'none';
+  badge.textContent=total+(total===1?' item':' itens');
+}
+
+/* ===== Histórico & contador (semana: segunda = 1º dia, domingo = 7º) · por operador ===== */
+const STATS_STORAGE_PREFIX = 'conferencia-os-stats';
+const STATS_VERSION = 3;
+const STATS_MAX_ARCHIVE = 104;
+
+function statsStorageKey() {
+  return currentUserId ? STATS_STORAGE_PREFIX + ':' + currentUserId : null;
+}
+
+function fmtShort(ts) {
+  return new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+function fmtHm(ts) {
+  return new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+/** Meia-noite da segunda-feira da semana calendário que contém `ts`, fuso horário local. */
+function startOfWeekMonday(ts) {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d.getTime();
+}
+
+/** Fim do domingo (23:59:59.999) da mesma semana iniciada na segunda em `weekMondayTs`. */
+function endOfWeekSundayFromMonday(weekMondayTs) {
+  const d = new Date(weekMondayTs);
+  d.setDate(d.getDate() + 6);
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
+}
+
+/** Próxima segunda 00:00 após uma segunda `weekMondayTs`. */
+function advanceWeekMonday(weekMondayTs) {
+  const d = new Date(weekMondayTs);
+  d.setDate(d.getDate() + 7);
+  return d.getTime();
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, (ch) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])
+  );
+}
+
+function resultadoLabel(ev) {
+  return ev && ev.resultado === 'conforme' ? '(conforme)' : '(com pendências)';
+}
+
+function defaultStatsState() {
+  return {
+    v: STATS_VERSION,
+    periodStart: startOfWeekMonday(Date.now()),
+    currentCount: 0,
+    currentEvents: [],
+    archive: []
+  };
+}
+
+function mapEvent(ev) {
+  const e = typeof ev === 'object' && ev ? { ...ev } : {};
+  e.resultado = e.resultado === 'conforme' ? 'conforme' : 'pendencias';
+  return e;
+}
+
+function hydrateStatsShape(obj) {
+  const o = typeof obj === 'object' && obj ? obj : defaultStatsState();
+  o.v = STATS_VERSION;
+  o.periodStart =
+    typeof o.periodStart === 'number' ? startOfWeekMonday(o.periodStart) : startOfWeekMonday(Date.now());
+  o.currentCount = Math.max(0, Number(o.currentCount) || 0);
+  o.currentEvents = Array.isArray(o.currentEvents) ? o.currentEvents.map(mapEvent) : [];
+  o.archive = Array.isArray(o.archive)
+    ? o.archive.map((a) => ({
+        periodStart:
+          typeof a.periodStart === 'number' ? a.periodStart : startOfWeekMonday(Date.now() - 7 * 86400000),
+        periodEnd:
+          a.periodEnd != null
+            ? a.periodEnd
+            : endOfWeekSundayFromMonday(
+                typeof a.periodStart === 'number' ? a.periodStart : startOfWeekMonday(Date.now())
+              ),
+        closedAt: typeof a.closedAt === 'number' ? a.closedAt : Date.now(),
+        count: Math.max(0, Number(a.count) || 0),
+        events: Array.isArray(a.events) ? a.events.map(mapEvent) : []
+      }))
+    : [];
+  return o;
+}
+
+/** Dados antes da v3: rolagem livre de 7 dias · passa para semanas seg–dom. */
+function migrateFromLegacy(parsed) {
+  const s = hydrateStatsShape({
+    v: STATS_VERSION,
+    periodStart: startOfWeekMonday(Date.now()),
+    currentCount: Number(parsed.currentCount) || 0,
+    currentEvents: (parsed.currentEvents || []).map(mapEvent),
+    archive: []
+  });
+
+  const evFixArr = (arr) => (Array.isArray(arr) ? arr : []).map(mapEvent);
+
+  (parsed.archive || []).forEach((a) => {
+    s.archive.push({
+      periodStart: typeof a.periodStart === 'number' ? a.periodStart : startOfWeekMonday(Date.now()),
+      periodEnd:
+        typeof a.periodEnd === 'number'
+          ? a.periodEnd
+          : endOfWeekSundayFromMonday(typeof a.periodStart === 'number' ? a.periodStart : s.periodStart),
+      closedAt: typeof a.closedAt === 'number' ? a.closedAt : Date.now(),
+      count: Number(a.count) || evFixArr(a.events).length,
+      events: evFixArr(a.events),
+      legacy: true
+    });
+  });
+
+  if (s.archive.length > STATS_MAX_ARCHIVE) s.archive = s.archive.slice(0, STATS_MAX_ARCHIVE);
+  const sk = statsStorageKey();
+  if (sk) localStorage.setItem(sk, JSON.stringify(s));
+  const api = window.electronAPI;
+  if (api && typeof api.persistHistory === 'function' && currentUserId)
+    Promise.resolve(api.persistHistory({ userId: currentUserId, data: s })).catch(() => {});
+  return s;
+}
+
+function loadStatsState() {
+  const sk = statsStorageKey();
+  if (!sk) return defaultStatsState();
+  try {
+    let raw = localStorage.getItem(sk);
+    if (!raw) {
+      const leg = localStorage.getItem(STATS_STORAGE_PREFIX);
+      if (leg) {
+        raw = leg;
+        localStorage.setItem(sk, leg);
+        localStorage.removeItem(STATS_STORAGE_PREFIX);
+      }
+    }
+    if (!raw) return defaultStatsState();
+    const parsed = JSON.parse(raw);
+    if (parsed.v !== STATS_VERSION) return migrateFromLegacy(parsed);
+    return hydrateStatsShape(parsed);
+  } catch {
+    return defaultStatsState();
+  }
+}
+
+function saveStatsState(state) {
+  const sk = statsStorageKey();
+  if (!sk) return;
+  if (state.archive.length > STATS_MAX_ARCHIVE) {
+    state.archive = state.archive.slice(0, STATS_MAX_ARCHIVE);
+  }
+  localStorage.setItem(sk, JSON.stringify(state));
+  const api = window.electronAPI;
+  if (api && typeof api.persistHistory === 'function' && currentUserId) {
+    Promise.resolve(api.persistHistory({ userId: currentUserId, data: state })).catch(() => {});
+  }
+}
+
+/** Semana fecha na próxima segunda (novo período seg–dom) */
+function rotateStatsIfNeeded(state) {
+  const thisMonday = startOfWeekMonday(Date.now());
+  let changed = false;
+
+  while (state.periodStart < thisMonday) {
+    const sundayTip = endOfWeekSundayFromMonday(state.periodStart);
+    if (state.currentCount > 0 || state.currentEvents.length > 0) {
+      state.archive.unshift({
+        periodStart: state.periodStart,
+        periodEnd: sundayTip,
+        closedAt: Date.now(),
+        count: state.currentCount,
+        events: state.currentEvents.slice()
+      });
+    }
+    state.periodStart = advanceWeekMonday(state.periodStart);
+    state.currentCount = 0;
+    state.currentEvents = [];
+    changed = true;
+  }
+
+  while (state.archive.length > STATS_MAX_ARCHIVE) state.archive.pop();
+
+  return changed;
+}
+
+function tipoLabel(k) {
+  if (k === 'instalacao') return 'Instalação';
+  if (k === 'manutencao') return 'Manutenção';
+  return '—';
+}
+
+function refreshStatsUi() {
+  if (!currentUserId) return;
+  const state = loadStatsState();
+  const rotated = rotateStatsIfNeeded(state);
+  if (rotated) saveStatsState(state);
+
+  const el = document.getElementById('stats-summary');
+  if (!el) return;
+
+  const sundayTs = endOfWeekSundayFromMonday(state.periodStart);
+  el.innerHTML = `Esta semana (segunda a domingo): <strong>${state.currentCount}</strong> O.S. · até domingo <strong>${fmtShort(sundayTs)}</strong>`;
+}
+
+function recordConference(meta) {
+  const state = loadStatsState();
+  rotateStatsIfNeeded(state);
+  state.currentCount += 1;
+  state.currentEvents.push({
+    at: Date.now(),
+    tipo: meta.tipo,
+    tecnico: meta.tecnico,
+    operador: meta.operador || '',
+    resultado: meta.resultado === 'conforme' ? 'conforme' : 'pendencias'
+  });
+  saveStatsState(state);
+  refreshStatsUi();
+}
+
+function eventsDetailHtml(events) {
+  if (!events.length)
+    return '<div class="hist-line muted">Nenhuma conferência registrada neste trecho.</div>';
+  const last = events.slice(-15).reverse();
+  return last
+    .map((e) => {
+      const nom = escapeHtml(String(e.tecnico || '').trim().slice(0, 48));
+      return `<div class="hist-line muted">${fmtShort(e.at)} ${fmtHm(e.at)} — ${tipoLabel(e.tipo)} ${resultadoLabel(e)} · Téc. ${nom || '(—)'}</div>`;
+    })
+    .join('');
+}
+
+function openHistModal() {
+  const state = loadStatsState();
+  const rotated = rotateStatsIfNeeded(state);
+  if (rotated) saveStatsState(state);
+
+  const sunEnd = endOfWeekSundayFromMonday(state.periodStart);
+  const body = document.getElementById('hist-modal-body');
+  const modal = document.getElementById('hist-modal');
+  const rows = [];
+
+  rows.push(
+    `<div class="hist-block">
+      <h4>Semana em curso (segunda a domingo)</h4>
+      <div class="hist-line">${fmtShort(state.periodStart)} — ${fmtShort(sunEnd)}</div>
+      <div class="hist-line"><strong style="color:#00d6ff">${state.currentCount}</strong> O.S. conferida(s)</div>
+      ${eventsDetailHtml(state.currentEvents)}
+    </div>`
+  );
+
+  if (!state.archive.length) rows.push('<p class="hist-empty">Nenhuma semana anterior arquivada ainda.</p>');
+  else {
+    state.archive.forEach((slot) => {
+      const pe = slot.periodEnd != null ? slot.periodEnd : endOfWeekSundayFromMonday(slot.periodStart);
+      rows.push(
+        `<div class="hist-block">
+          <h4>Semana encerrada · arquivada</h4>
+          <div class="hist-line">${fmtShort(slot.periodStart)} — ${fmtShort(pe)}</div>
+          <div class="hist-line"><strong style="color:#00d6ff">${slot.count}</strong> O.S. conferida(s)</div>
+          <div class="hist-line muted">Registro ao fechar a semana: ${fmtShort(slot.closedAt)} ${fmtHm(slot.closedAt)}</div>
+          ${eventsDetailHtml(slot.events || [])}
+        </div>`
+      );
+    });
+  }
+
+  body.innerHTML = rows.join('');
+  modal.classList.add('visible');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeHistModal() {
+  const modal = document.getElementById('hist-modal');
+  modal.classList.remove('visible');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const h = document.getElementById('hist-modal');
+  if (h && h.classList.contains('visible')) closeHistModal();
+  const c = document.getElementById('checklist-modal');
+  if (c && c.classList.contains('visible')) closeChecklistModal();
+});
+
+/* ===== Editor de checklist (configurável pela UI) ===== */
+let checklistDraft = null;
+let checklistEditorTab = 'instalacao';
+
+function cloneChecklist(src) {
+  return {
+    instalacao: src.instalacao.map((it) => ({ ...it })),
+    manutencao: src.manutencao.map((it) => ({ ...it }))
+  };
+}
+
+function openChecklistModal() {
+  checklistDraft = cloneChecklist(items);
+  checklistEditorTab = 'instalacao';
+  document.getElementById('cked-tab-inst').classList.add('sel');
+  document.getElementById('cked-tab-man').classList.remove('sel');
+  renderChecklistEditor();
+  const modal = document.getElementById('checklist-modal');
+  modal.classList.add('visible');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeChecklistModal() {
+  const modal = document.getElementById('checklist-modal');
+  modal.classList.remove('visible');
+  modal.setAttribute('aria-hidden', 'true');
+  checklistDraft = null;
+}
+
+function setChecklistEditorTab(tipoKey) {
+  checklistEditorTab = tipoKey;
+  document.getElementById('cked-tab-inst').classList.toggle('sel', tipoKey === 'instalacao');
+  document.getElementById('cked-tab-man').classList.toggle('sel', tipoKey === 'manutencao');
+  renderChecklistEditor();
+}
+
+function renderChecklistEditor() {
+  const list = document.getElementById('checklist-editor-list');
+  list.innerHTML = '';
+  const arr = checklistDraft[checklistEditorTab];
+
+  if (!arr.length) {
+    const empty = document.createElement('div');
+    empty.className = 'hist-empty';
+    empty.textContent = 'Nenhum item. Adicione abaixo.';
+    list.appendChild(empty);
+    return;
+  }
+
+  arr.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.className = 'cked-row';
+
+    const txt = document.createElement('input');
+    txt.type = 'text';
+    txt.value = item.t;
+    txt.className = 'cked-text';
+    txt.placeholder = 'Descrição do item';
+    txt.addEventListener('input', (e) => { item.t = e.target.value; });
+
+    const obrLabel = document.createElement('label');
+    obrLabel.className = 'cked-obr';
+    const obrChk = document.createElement('input');
+    obrChk.type = 'checkbox';
+    obrChk.checked = !!item.obr;
+    obrChk.addEventListener('change', (e) => { item.obr = e.target.checked; });
+    obrLabel.appendChild(obrChk);
+    obrLabel.appendChild(document.createTextNode('Obrigatório'));
+
+    const upBtn = document.createElement('button');
+    upBtn.type = 'button'; upBtn.textContent = '↑'; upBtn.className = 'cked-mini';
+    upBtn.disabled = i === 0;
+    upBtn.onclick = () => moveChecklistItem(i, -1);
+
+    const downBtn = document.createElement('button');
+    downBtn.type = 'button'; downBtn.textContent = '↓'; downBtn.className = 'cked-mini';
+    downBtn.disabled = i === arr.length - 1;
+    downBtn.onclick = () => moveChecklistItem(i, 1);
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button'; delBtn.textContent = '✕'; delBtn.className = 'cked-mini cked-del';
+    delBtn.onclick = () => removeChecklistItem(i);
+
+    row.appendChild(txt);
+    row.appendChild(obrLabel);
+    row.appendChild(upBtn);
+    row.appendChild(downBtn);
+    row.appendChild(delBtn);
+    list.appendChild(row);
+  });
+}
+
+function addChecklistItem() {
+  const arr = checklistDraft[checklistEditorTab];
+  const prefix = checklistEditorTab === 'instalacao' ? 'inst' : 'man';
+  arr.push({ id: `${prefix}-custom-${Date.now()}-${arr.length}`, t: '', obr: false });
+  renderChecklistEditor();
+}
+
+function removeChecklistItem(i) {
+  checklistDraft[checklistEditorTab].splice(i, 1);
+  renderChecklistEditor();
+}
+
+function moveChecklistItem(i, dir) {
+  const arr = checklistDraft[checklistEditorTab];
+  const j = i + dir;
+  if (j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  renderChecklistEditor();
+}
+
+async function saveChecklistEdits() {
+  const draft = checklistDraft;
+  draft.instalacao = draft.instalacao.filter((it) => it.t && it.t.trim().length > 0);
+  draft.manutencao = draft.manutencao.filter((it) => it.t && it.t.trim().length > 0);
+
+  const api = window.electronAPI;
+  if (!api || typeof api.checklistSave !== 'function') {
+    alert('Abra o aplicativo pelo Conferência de O.S. (Electron).');
+    return;
+  }
+  const res = await api.checklistSave(draft);
+  if (!res.ok) {
+    alert(res.error || 'Não foi possível salvar o checklist.');
+    return;
+  }
+  items = res.data;
+  closeChecklistModal();
+}
+
+/* ===== Backup / restore do histórico ===== */
+async function exportHistoryBackup() {
+  const api = window.electronAPI;
+  if (!api || typeof api.historyExport !== 'function') {
+    alert('Abra o aplicativo pelo Conferência de O.S. (Electron).');
+    return;
+  }
+  const state = loadStatsState();
+  const res = await api.historyExport({ state, meta: { userId: currentUserId, displayName: operador } });
+  if (res.canceled) return;
+  if (!res.ok) { alert(res.error || 'Não foi possível exportar o backup.'); return; }
+  alert('Backup exportado em: ' + res.path);
+}
+
+async function importHistoryBackup() {
+  const api = window.electronAPI;
+  if (!api || typeof api.historyImport !== 'function') {
+    alert('Abra o aplicativo pelo Conferência de O.S. (Electron).');
+    return;
+  }
+  const res = await api.historyImport();
+  if (res.canceled) return;
+  if (!res.ok) { alert(res.error || 'Não foi possível importar o backup.'); return; }
+  if (res.userId && res.userId !== currentUserId) {
+    const ok = confirm('Este backup pertence a outro operador. Importar mesmo assim, substituindo o seu histórico atual?');
+    if (!ok) return;
+  } else {
+    const ok = confirm('Importar este backup vai substituir o seu histórico atual da semana e o arquivo. Continuar?');
+    if (!ok) return;
+  }
+  const hydrated = hydrateStatsShape(res.state);
+  saveStatsState(hydrated);
+  refreshStatsUi();
+  openHistModal();
+}
+
+function hideWin(){ if(window.electronAPI) window.electronAPI.hideWindow(); }
+
+function showRegisterPanel(on) {
+  document.getElementById('panel-login').style.display = on ? 'none' : 'block';
+  document.getElementById('panel-register').style.display = on ? 'block' : 'none';
+  if (on) setTimeout(() => document.getElementById('reg-user').focus(), 50);
+  else setTimeout(() => document.getElementById('login-user').focus(), 50);
+}
+
+async function doRegister() {
+  const api = window.electronAPI;
+  if (!api || typeof api.authRegister !== 'function') {
+    alert('Abra o aplicativo pelo Conferência de O.S. (Electron).');
+    return;
+  }
+  const username = document.getElementById('reg-user').value.trim();
+  const displayName = document.getElementById('reg-display').value.trim();
+  const p1 = document.getElementById('reg-pass1').value;
+  const p2 = document.getElementById('reg-pass2').value;
+  if (p1 !== p2) {
+    alert('As senhas não coincidem.');
+    return;
+  }
+  const res = await api.authRegister({ username, displayName, password: p1 });
+  if (!res.ok) {
+    alert(res.error || 'Cadastro não realizado.');
+    return;
+  }
+  document.getElementById('reg-pass1').value = '';
+  document.getElementById('reg-pass2').value = '';
+  document.getElementById('login-user').value = res.user.username || username;
+  showRegisterPanel(false);
+  alert('Cadastro criado. Entre com usuário e senha.');
+  document.getElementById('login-pass').focus();
+}
+
+/* LOGIN */
+async function doLogin() {
+  const api = window.electronAPI;
+  if (!api || typeof api.authLogin !== 'function') {
+    alert('Abra o aplicativo pelo Conferência de O.S. (Electron).');
+    return;
+  }
+  const username = document.getElementById('login-user').value.trim();
+  const password = document.getElementById('login-pass').value;
+  if (!username) {
+    document.getElementById('login-user').focus();
+    return;
+  }
+  const res = await api.authLogin({ username, password });
+  if (!res.ok) {
+    alert(res.error || 'Não foi possível entrar.');
+    document.getElementById('login-pass').value = '';
+    document.getElementById('login-pass').focus();
+    return;
+  }
+  currentUserId = res.user.id;
+  operador = res.user.displayName;
+  document.getElementById('login-pass').value = '';
+  document.getElementById('user-badge-name').textContent = operador;
+  document.getElementById('user-badge-avatar').textContent = ([...operador][0] || '?').toUpperCase();
+  document.getElementById('user-badge').style.display = 'flex';
+  document.getElementById('steps-bar').style.display = 'flex';
+  document.getElementById('stats-bar').style.display = 'flex';
+  document.getElementById('checklist-btn').style.display = 'flex';
+  await hydrateHistoryFromDiskIfEmpty();
+  refreshStatsUi();
+  setScr(1);
+}
+
+/** Se não houver histórico no localStorage para este operador, tenta recuperar do espelho em disco. */
+async function hydrateHistoryFromDiskIfEmpty() {
+  const sk = statsStorageKey();
+  if (!sk || localStorage.getItem(sk)) return;
+  const api = window.electronAPI;
+  if (!api || typeof api.historyRead !== 'function') return;
+  try {
+    const res = await api.historyRead(currentUserId);
+    if (res.ok && res.data) {
+      localStorage.setItem(sk, JSON.stringify(hydrateStatsShape(res.data)));
+    }
+  } catch {}
+}
+
+function logout() {
+  currentUserId = null;
+  operador = '';
+  tipo = null;
+  conferenciaSemPendencias = false;
+  setModoOs(false);
+  document.getElementById('login-pass').value = '';
+  showRegisterPanel(false);
+  document.getElementById('user-badge-avatar').textContent = '';
+  document.getElementById('user-badge').style.display = 'none';
+  document.getElementById('steps-bar').style.display = 'none';
+  document.getElementById('stats-bar').style.display = 'none';
+  document.getElementById('checklist-btn').style.display = 'none';
+  document.getElementById('ci-inst').classList.remove('sel');
+  document.getElementById('ci-man').classList.remove('sel');
+  setScr(0);
+}
+
+/* SCREENS */
+function setScr(n){
+  ['s0','s1','s2','s3'].forEach((s,i)=>
+    document.getElementById(s).classList.toggle('visible', i===n)
+  );
+  if(n>=1){
+    ['d1','d2','d3'].forEach((d,i)=>{
+      const el=document.getElementById(d);
+      el.classList.remove('active','done');
+      if(i+1< n) el.classList.add('done');
+      if(i+1===n) el.classList.add('active');
+    });
+  }
+  if (n === 0) setTimeout(() => document.getElementById('login-user').focus(), 80);
+  if (n === 2) {
+    const tecEl = document.getElementById('tec');
+    if (tecEl) {
+      tecEl.readOnly = false;
+      tecEl.disabled = false;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            if (document.getElementById('s2').classList.contains('visible')) {
+              tecEl.focus({ preventScroll: true });
+            }
+          }, 0);
+        });
+      });
+    }
+  }
+}
+
+function sel(t){
+  tipo=t;
+  document.getElementById('ci-inst').classList.toggle('sel',t==='instalacao');
+  document.getElementById('ci-man').classList.toggle('sel',t==='manutencao');
+}
+
+function go1(){ setScr(1); }
+
+function go2(preserve){
+  if(!tipo){ alert('Selecione o tipo da O.S. primeiro.'); return; }
+  if(!preserve){
+    conferenciaSemPendencias=false;
+    setModoOs(false);
+    const c=document.getElementById('chks');
+    c.innerHTML='';
+    document.getElementById('cnt').style.display='none';
+
+    items[tipo].forEach((item,i)=>{
+      const d=document.createElement('div');
+      d.className='ci'; d.id='ci'+i;
+
+      const chk=document.createElement('input');
+      chk.type='checkbox'; chk.id='ck'+i;
+      chk.addEventListener('change',()=>tog(i));
+
+      const span=document.createElement('span');
+      span.className='ct';
+      span.innerHTML=item.t+(item.obr?' <span class="badge-obrig">obrigatório</span>':'');
+
+      d.appendChild(chk); d.appendChild(span);
+
+      d.addEventListener('click',e=>{
+        if(e.target!==chk){ chk.checked=!chk.checked; tog(i); }
+      });
+      c.appendChild(d);
+    });
+  }
+  syncPendBadge();
+  setScr(2);
+}
+
+function tog(i){
+  const chk=document.getElementById('ck'+i);
+  document.getElementById('ci'+i).classList.toggle('checked',chk.checked);
+  const total=items[tipo].filter((_,j)=>document.getElementById('ck'+j)?.checked).length;
+  const badge=document.getElementById('cnt');
+  badge.style.display=total>0?'inline':'none';
+  badge.textContent=total+(total===1?' item':' itens');
+}
+
+function buildText(){
+  const tec=document.getElementById('tec').value.trim();
+  if(!tec){ document.getElementById('tec').focus(); alert('Informe o nome do técnico.'); return null; }
+  const label=tipo==='instalacao'?'Instalação':'Manutenção';
+  const now=new Date();
+  const data=now.toLocaleDateString('pt-BR');
+  const hora=now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  if(conferenciaSemPendencias){
+    return `O.S. de acordo com os parâmetros determinados.\n\nTipo de serviço: ${label}\nTécnico: ${tec}\n\nConferido por: ${operador} — ${data} às ${hora}`;
+  }
+  const sel=items[tipo].filter((_,i)=>document.getElementById('ck'+i)?.checked);
+  if(!sel.length){ alert('Selecione ao menos uma pendência.'); return null; }
+  const lista=sel.map((s,i)=>`${i+1}. ${s.t}${s.obr?' (item obrigatório)':''}`).join('\n');
+  return `Conferência de O.S. — ${label}\nTécnico: ${tec}\n\nPendências identificadas:\n${lista}\n\nItem(ns) não conforme(s) com o padrão estabelecido.\nConferido por: ${operador} — ${data} às ${hora}`;
+}
+
+function copyText(txt){
+  if(window.electronAPI) window.electronAPI.copyText(txt);
+  else navigator.clipboard.writeText(txt).catch(()=>{
+    const ta=document.createElement('textarea');
+    ta.value=txt; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  });
+}
+
+function go3(){
+  const txt=buildText(); if(!txt) return;
+  recordConference({
+    tipo,
+    tecnico: document.getElementById('tec').value.trim(),
+    operador,
+    resultado: conferenciaSemPendencias ? 'conforme' : 'pendencias'
+  });
+  lastText=txt;
+  document.getElementById('rtxt').textContent=txt;
+  copyText(txt);
+  setScr(3);
+}
+
+function copyAgain(){
+  copyText(lastText);
+  const btn=document.getElementById('copy-again-btn');
+  btn.textContent='Copiado!';
+  setTimeout(()=>btn.textContent='Copiar novamente',2000);
+}
+
+function reset(){
+  tipo=null;
+  conferenciaSemPendencias=false;
+  setModoOs(false);
+  document.getElementById('ci-inst').classList.remove('sel');
+  document.getElementById('ci-man').classList.remove('sel');
+  document.getElementById('tec').value='';
+  lastText='';
+  setScr(1);
+}
+
+/* Enter nos inputs de login */
+document.getElementById('login-pass').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('login-user').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('login-pass').focus();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && document.getElementById('s2').classList.contains('visible')) go3();
+});
+
+/* Garante foco no nome do técnico ao clicar (Electron / região de arraste). */
+(function armTecInputFix() {
+  const t = document.getElementById('tec');
+  if (!t) return;
+  t.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (!document.getElementById('s2').classList.contains('visible')) return;
+      e.stopPropagation();
+      t.focus({ preventScroll: true });
+    },
+    true
+  );
+})();
+
+refreshStatsUi();
+</script>
+</body>
+</html>

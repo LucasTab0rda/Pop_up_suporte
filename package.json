@@ -1,0 +1,44 @@
+{
+  "name": "conferencia-os-implantar",
+  "version": "1.0.0",
+  "description": "Sistema de Conferência de O.S. — Implantar Telecom",
+  "private": true,
+  "main": "main.js",
+  "author": "Implantar Telecom",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.implantar.conferencia-os",
+    "productName": "Conferência OS - Implantar",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Conferência OS - Implantar"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  }
+}

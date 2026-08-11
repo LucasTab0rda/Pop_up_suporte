@@ -7,7 +7,8 @@
   "author": "Implantar Telecom",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win --x64"
+    "build": "electron-builder --win --x64",
+    "publish": "electron-builder --win --x64 --publish always"
   },
   "build": {
     "appId": "com.implantar.conferencia-os",
@@ -25,7 +26,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -35,7 +38,15 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Conferência OS - Implantar"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "LucasTab0rda",
+      "repo": "Pop_up_suporte"
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "^33.4.11",

@@ -1,3 +1,19 @@
 node_modules/
 dist/
 release/
+
+# Variáveis de ambiente e segredos — nunca versionar
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Logs
+*.log
+logs/
+
+# Arquivos de sistema Windows
+Thumbs.db
+Desktop.ini

@@ -1232,7 +1232,13 @@ function go2(preserve){
 
       const span=document.createElement('span');
       span.className='ct';
-      span.innerHTML=item.t+(item.obr?' <span class="badge-obrig">obrigatório</span>':'');
+      span.textContent=item.t;
+      if(item.obr){
+        const badge=document.createElement('span');
+        badge.className='badge-obrig';
+        badge.textContent='obrigatório';
+        span.append(' ',badge);
+      }
 
       d.appendChild(chk); d.appendChild(span);
 

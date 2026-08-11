@@ -1,10 +1,12 @@
 const { app, BrowserWindow, Tray, Menu, screen, nativeImage, ipcMain, clipboard, dialog, globalShortcut } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const crypto = require('crypto');
 const fs = require('fs').promises;
 const path = require('path');
 
 let tray = null;
 let win = null;
+let updateReadyVersion = null; // versão baixada aguardando reinício
 
 const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 };
 const KEYLEN = 64;
@@ -177,8 +179,21 @@ function toggleWindow() {
 
 function rebuildTrayMenu() {
   const openAtLogin = app.getLoginItemSettings().openAtLogin;
+
+  const updateMenuItem = updateReadyVersion
+    ? {
+        label: `🔄  Reiniciar e atualizar para v${updateReadyVersion}`,
+        click: () => autoUpdater.quitAndInstall(true, true)
+      }
+    : {
+        label: '🔍  Verificar atualizações',
+        click: checkForUpdatesManually
+      };
+
   const menu = Menu.buildFromTemplate([
     { label: '📋  Abrir Conferência', click: toggleWindow },
+    { type: 'separator' },
+    updateMenuItem,
     { type: 'separator' },
     {
       label: 'Iniciar com o Windows',
@@ -192,6 +207,71 @@ function rebuildTrayMenu() {
     { label: 'Sair', click: () => { win.destroy(); app.quit(); } }
   ]);
   tray.setContextMenu(menu);
+}
+
+function checkForUpdatesManually() {
+  if (!app.isPackaged) {
+    dialog.showMessageBox(win, {
+      type: 'info',
+      title: 'Modo desenvolvimento',
+      message: 'Verificação de atualizações só funciona no app instalado.'
+    });
+    return;
+  }
+  autoUpdater.checkForUpdates().catch((err) => {
+    dialog.showMessageBox(win, {
+      type: 'error',
+      title: 'Erro ao verificar atualizações',
+      message: 'Não foi possível verificar atualizações.',
+      detail: String(err.message || err)
+    });
+  });
+}
+
+function setupAutoUpdater() {
+  if (!app.isPackaged) return;
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-available', (info) => {
+    tray && tray.setToolTip(`Conferência de O.S. — Baixando v${info.version}...`);
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    tray && tray.setToolTip('Conferência de O.S. — Implantar Telecom');
+  });
+
+  autoUpdater.on('download-progress', (prog) => {
+    const pct = Math.round(prog.percent);
+    tray && tray.setToolTip(`Conferência de O.S. — Baixando atualização ${pct}%`);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    tray && tray.setToolTip('Conferência de O.S. — Implantar Telecom');
+    updateReadyVersion = info.version;
+    rebuildTrayMenu();
+
+    dialog.showMessageBox(win, {
+      type: 'info',
+      title: 'Atualização disponível',
+      message: `Nova versão ${info.version} pronta para instalar.`,
+      detail: 'Reinicie o aplicativo para aplicar a atualização. Seus dados não serão perdidos.',
+      buttons: ['Reiniciar agora', 'Mais tarde'],
+      defaultId: 0,
+      cancelId: 1
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall(true, true);
+    });
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('[updater]', err);
+    tray && tray.setToolTip('Conferência de O.S. — Implantar Telecom');
+  });
+
+  // Verificação automática 5 segundos após o app iniciar
+  setTimeout(() => autoUpdater.checkForUpdates().catch(console.error), 5000);
 }
 
 app.whenReady().then(() => {
@@ -214,6 +294,8 @@ app.whenReady().then(() => {
   if (!shortcutRegistered) {
     console.error('Não foi possível registrar o atalho global Ctrl/Cmd+Alt+O (em uso por outro app).');
   }
+
+  setupAutoUpdater();
 });
 
 app.on('will-quit', () => {
@@ -235,7 +317,7 @@ ipcMain.handle('persist-history', async (_, payload) => {
     const data = payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload;
     const file = historyFilePath(userId);
     await fs.writeFile(file, JSON.stringify(data, null, 2), 'utf8');
-    return { ok: true, path: file };
+    return { ok: true };
   } catch (err) {
     console.error('persist-history:', err);
     return { ok: false, message: String(err.message || err) };
@@ -245,10 +327,15 @@ ipcMain.handle('persist-history', async (_, payload) => {
 // Espelho do histórico em disco — permite recuperar quando o localStorage foi perdido
 function historyFilePath(userId) {
   const dir = app.getPath('userData');
-  const name =
-    userId && String(userId).length > 0
-      ? `conferencia-os-historico-${String(userId)}.json`
-      : 'conferencia-os-historico.json';
+  // Aceita apenas UUID gerado por crypto.randomUUID() — bloqueia path traversal
+  const safeId =
+    userId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(userId))
+      ? String(userId)
+      : null;
+  const name = safeId
+    ? `conferencia-os-historico-${safeId}.json`
+    : 'conferencia-os-historico.json';
   return path.join(dir, name);
 }
 

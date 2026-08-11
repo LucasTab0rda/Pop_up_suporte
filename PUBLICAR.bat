@@ -17,10 +17,10 @@ if not exist "%NP%\node.exe" (
 )
 echo  [OK] Node.js encontrado.
 
-:: ── npm install (garante electron-updater instalado) ─
+:: ── npm install ──────────────────────────────────────
 echo.
 echo  [..] Verificando dependencias...
-"%NP%\npm.cmd" install --silent
+call "%NP%\npm.cmd" install --no-audit
 if %errorlevel% neq 0 (
     echo  [ERRO] npm install falhou.
     pause & exit /b 1
@@ -34,9 +34,9 @@ if "%GH_TOKEN%"=="" (
     echo  com permissao "repo" (Contents: write).
     echo.
     echo  Onde criar: https://github.com/settings/tokens
-    echo  (Token classico ^> repo ^> Generate token)
+    echo  (Token classico - repo - Generate token)
     echo.
-    set /p GH_TOKEN="  Cole o token aqui (nao aparecera na tela): "
+    set /p GH_TOKEN="  Cole o token aqui: "
     if "!GH_TOKEN!"=="" (
         echo.
         echo  [ERRO] Token nao informado. Publicacao cancelada.
@@ -44,7 +44,7 @@ if "%GH_TOKEN%"=="" (
     )
 )
 
-:: ── Versao atual ──────────────────────────────────────
+:: ── Versao atual ─────────────────────────────────────
 for /f "usebackq delims=" %%v in (`powershell -NoProfile -Command "(Get-Content package.json -Raw | ConvertFrom-Json).version"`) do set CURRENT=%%v
 echo.
 echo  Versao atual no package.json: %CURRENT%
@@ -63,21 +63,21 @@ if %errorlevel% neq 0 (
 if not "!NEW_VER!"=="%CURRENT%" (
     echo.
     echo  [..] Atualizando versao para !NEW_VER!...
-    "%NP%\npm.cmd" version !NEW_VER! --no-git-tag-version --allow-same-version >nul
+    call "%NP%\npm.cmd" version !NEW_VER! --no-git-tag-version --allow-same-version
     if %errorlevel% neq 0 (
-        echo  [ERRO] Falha ao atualizar package.json.
+        echo  [ERRO] Falha ao atualizar a versao.
         pause & exit /b 1
     )
-    echo  [OK] package.json atualizado.
+    echo  [OK] Versao atualizada.
 )
 
-:: ── Confirmacao final ─────────────────────────────────
+:: ── Confirmacao ───────────────────────────────────────
 echo.
-echo  ┌─────────────────────────────────────────────────┐
-echo  │  Prestes a publicar versao !NEW_VER! no GitHub      │
-echo  │  Repositorio: LucasTab0rda/Pop_up_suporte       │
-echo  │  Os apps dos operadores atualizarao em ~5 min   │
-echo  └─────────────────────────────────────────────────┘
+echo  =====================================================
+echo   Prestes a publicar versao !NEW_VER! no GitHub
+echo   Repositorio: LucasTab0rda/Pop_up_suporte
+echo   Os apps dos operadores atualizarao automaticamente
+echo  =====================================================
 echo.
 set /p CONFIRM="  Confirmar publicacao? (S/N): "
 if /i not "!CONFIRM!"=="S" (
@@ -91,25 +91,24 @@ echo  [..] Gerando instalador e enviando para o GitHub...
 echo       (pode levar alguns minutos)
 echo.
 set GH_TOKEN=!GH_TOKEN!
-"%NP%\npm.cmd" run publish
+call "%NP%\npm.cmd" run publish
 if %errorlevel% neq 0 (
     echo.
     echo  [ERRO] Publicacao falhou.
     echo.
     echo  Causas comuns:
     echo  - Token sem permissao "repo"
-    echo  - Repositorio nao existe ou nome incorreto
+    echo  - Repositorio privado (deve ser publico)
     echo  - Sem conexao com a internet
     pause & exit /b 1
 )
 
 echo.
-echo  ======================================================
+echo  =====================================================
 echo   VERSAO !NEW_VER! PUBLICADA COM SUCESSO!
 echo.
-echo   Os operadores receberao a atualizacao automaticamente
-echo   na proxima vez que o app verificar (aprox. 5 min
-echo   apos abrir o app).
-echo  ======================================================
+echo   Os operadores recebem a atualizacao automaticamente
+echo   na proxima vez que abrirem o app.
+echo  =====================================================
 echo.
 pause

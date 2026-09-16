@@ -1,6 +1,6 @@
 {
   "name": "conferencia-os-implantar",
-  "version": "1.0.0",
+  "version": "1.2.1",
   "description": "Sistema de Conferência de O.S. — Implantar Telecom",
   "private": true,
   "main": "main.js",
@@ -12,7 +12,8 @@
   },
   "build": {
     "appId": "com.implantar.conferencia-os",
-    "productName": "Conferência OS - Implantar",
+    "productName": "Implantar Conferência",
+    "artifactName": "Implantar-Conferencia-Setup-${version}.${ext}",
     "directories": {
       "output": "release"
     },
@@ -23,6 +24,7 @@
       "assets/**/*"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -37,12 +39,14 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Conferência OS - Implantar"
+      "shortcutName": "Implantar Conferência",
+      "uninstallDisplayName": "Implantar Conferência ${version}"
     },
     "publish": {
       "provider": "github",
       "owner": "LucasTab0rda",
-      "repo": "Pop_up_suporte"
+      "repo": "Pop_up_suporte",
+      "releaseType": "release"
     }
   },
   "dependencies": {

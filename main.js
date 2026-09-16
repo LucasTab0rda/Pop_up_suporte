@@ -43,17 +43,17 @@ function checklistFilePath() {
 }
 
 const DEFAULT_CHECKLIST = {
-  v: 1,
+  v: 2,
   instalacao: [
     { id: 'inst-sinal-status', t: 'Sinal pelo status do equipamento', obr: false },
-    { id: 'inst-lacre-fibra', t: 'Lacre de identificação instalado na fibra', obr: false },
-    { id: 'inst-teste-velocidade', t: 'Teste de velocidade', obr: false },
-    { id: 'inst-foto-instalacao', t: 'Foto da instalação', obr: false },
+    { id: 'inst-lacre-fibra', t: 'Lacre de identificação instalado na fibra', obr: true },
+    { id: 'inst-teste-velocidade', t: 'Teste de velocidade', obr: true },
+    { id: 'inst-foto-instalacao', t: 'Foto da instalação', obr: true },
     { id: 'inst-cto-fechada', t: 'CTO ou CTOi devidamente fechada', obr: false },
-    { id: 'inst-potencia-externa', t: 'Potência externa com cordão óptico (1490 nm)', obr: false },
-    { id: 'inst-potencia-interna', t: 'Potência interna', obr: false },
-    { id: 'inst-acesso-remoto', t: 'Acesso remoto', obr: false },
-    { id: 'inst-sn-equipamento', t: 'SN (número de série) do equipamento', obr: false },
+    { id: 'inst-potencia-externa', t: 'Potência externa com cordão óptico (1490 nm)', obr: true },
+    { id: 'inst-potencia-interna', t: 'Potência interna (1490 nm)', obr: true },
+    { id: 'inst-acesso-remoto', t: 'Acesso remoto', obr: true },
+    { id: 'inst-sn-equipamento', t: 'SN (número de série) do equipamento', obr: true },
     { id: 'inst-cto-inmap', t: 'Sigla da CTO via Inmap', obr: false },
     { id: 'inst-comprovante-assinatura', t: 'Comprovante com assinatura do cliente', obr: false },
     { id: 'inst-adesivo-senha', t: 'Adesivo com a senha do cliente', obr: false }
@@ -91,7 +91,7 @@ function normalizeChecklist(data) {
       obr: !!it.obr
     }));
   return {
-    v: 1,
+    v: 2,
     instalacao: withIds(data.instalacao, 'inst'),
     manutencao: withIds(data.manutencao, 'man')
   };
@@ -100,7 +100,10 @@ function normalizeChecklist(data) {
 async function readChecklist() {
   try {
     const raw = await fs.readFile(checklistFilePath(), 'utf8');
-    const normalized = normalizeChecklist(JSON.parse(raw));
+    const parsed = JSON.parse(raw);
+    // v < 2: arquivo antigo sem os marcadores de obrigatório corretos — usa o padrão atualizado
+    if (!parsed || typeof parsed.v !== 'number' || parsed.v < 2) return DEFAULT_CHECKLIST;
+    const normalized = normalizeChecklist(parsed);
     return normalized || DEFAULT_CHECKLIST;
   } catch {
     return DEFAULT_CHECKLIST;
@@ -123,9 +126,6 @@ app.on('second-instance', () => {
 });
 
 function getAsset(name) {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'assets', name);
-  }
   return path.join(__dirname, 'assets', name);
 }
 
@@ -239,7 +239,7 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('update-not-available', () => {
-    tray && tray.setToolTip('Conferência de O.S. — Implantar Telecom');
+    tray && tray.setToolTip('Implantar Conferência');
   });
 
   autoUpdater.on('download-progress', (prog) => {
@@ -248,7 +248,7 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
-    tray && tray.setToolTip('Conferência de O.S. — Implantar Telecom');
+    tray && tray.setToolTip('Implantar Conferência');
     updateReadyVersion = info.version;
     rebuildTrayMenu();
 
@@ -267,7 +267,7 @@ function setupAutoUpdater() {
 
   autoUpdater.on('error', (err) => {
     console.error('[updater]', err);
-    tray && tray.setToolTip('Conferência de O.S. — Implantar Telecom');
+    tray && tray.setToolTip('Implantar Conferência');
   });
 
   // Verificação automática 5 segundos após o app iniciar
@@ -282,9 +282,10 @@ app.whenReady().then(() => {
   }
 
   // Tray
-  const trayImg = nativeImage.createFromPath(getAsset('tray.png')).resize({ width: 20, height: 20 });
-  tray = new Tray(trayImg);
-  tray.setToolTip('Conferência de O.S. — Implantar Telecom');
+  const trayIconPath = getAsset('tray.ico');
+  const trayImg = nativeImage.createFromPath(trayIconPath);
+  tray = new Tray(trayImg.isEmpty() ? nativeImage.createFromPath(getAsset('tray.png')) : trayImg);
+  tray.setToolTip('Implantar Conferência');
   tray.on('click', toggleWindow);
   rebuildTrayMenu();
 

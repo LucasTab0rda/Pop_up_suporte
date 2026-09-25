@@ -8,35 +8,6 @@ let tray = null;
 let win = null;
 let updateReadyVersion = null; // versão baixada aguardando reinício
 
-const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 };
-const KEYLEN = 64;
-
-function usersFilePath() {
-  return path.join(app.getPath('userData'), 'conferencia-os-operadores.json');
-}
-
-async function readUsersDb() {
-  try {
-    const raw = await fs.readFile(usersFilePath(), 'utf8');
-    const j = JSON.parse(raw);
-    return Array.isArray(j.users) ? j : { users: [] };
-  } catch {
-    return { users: [] };
-  }
-}
-
-async function writeUsersDb(db) {
-  await fs.writeFile(usersFilePath(), JSON.stringify(db, null, 2), 'utf8');
-}
-
-function hashPasswordSync(password, saltBuf) {
-  return crypto.scryptSync(password, saltBuf, KEYLEN, SCRYPT_PARAMS);
-}
-
-function safeEqual(a, b) {
-  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b) || a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
 
 function checklistFilePath() {
   return path.join(app.getPath('userData'), 'conferencia-os-checklist.json');
@@ -406,64 +377,6 @@ ipcMain.handle('checklist-save', async (_, payload) => {
   }
 });
 
-ipcMain.handle('auth-register', async (_, { username, displayName, password }) => {
-  const u = String(username || '').trim().toLowerCase();
-  const disp = String(displayName || '').trim();
-  const pass = String(password || '');
-  if (u.length < 2 || !/^[a-z0-9._-]+$/i.test(u)) {
-    return { ok: false, error: 'Usuário: mín. 2 caracteres (letras, números, . _ -).' };
-  }
-  if (disp.length < 2) return { ok: false, error: 'Informe o nome para exibição (mín. 2 caracteres).' };
-  if (pass.length < 4) return { ok: false, error: 'Senha com pelo menos 4 caracteres.' };
-
-  const db = await readUsersDb();
-  if (db.users.some((x) => x.usernameLower === u)) {
-    return { ok: false, error: 'Este nome de usuário já está cadastrado.' };
-  }
-
-  const salt = crypto.randomBytes(16);
-  const hash = hashPasswordSync(pass, salt);
-  const id = crypto.randomUUID();
-  db.users.push({
-    id,
-    usernameLower: u,
-    username: String(username || '').trim(),
-    displayName: disp,
-    passHash: hash.toString('hex'),
-    salt: salt.toString('hex')
-  });
-  await writeUsersDb(db);
-  return { ok: true, user: { id, username: String(username || '').trim(), displayName: disp } };
-});
-
-ipcMain.handle('auth-login', async (_, { username, password }) => {
-  const u = String(username || '').trim().toLowerCase();
-  const pass = String(password || '');
-  if (!u || !pass) return { ok: false, error: 'Informe usuário e senha.' };
-
-  const db = await readUsersDb();
-  const found = db.users.find((x) => x.usernameLower === u);
-  if (!found) return { ok: false, error: 'Usuário ou senha incorretos.' };
-
-  const salt = Buffer.from(found.salt, 'hex');
-  const expected = Buffer.from(found.passHash, 'hex');
-  let derived;
-  try {
-    derived = hashPasswordSync(pass, salt);
-  } catch {
-    return { ok: false, error: 'Usuário ou senha incorretos.' };
-  }
-  if (!safeEqual(derived, expected)) return { ok: false, error: 'Usuário ou senha incorretos.' };
-
-  return {
-    ok: true,
-    user: {
-      id: found.id,
-      username: found.username,
-      displayName: found.displayName
-    }
-  };
-});
 
 // Impede sair ao fechar todas as janelas
 app.on('window-all-closed', (e) => e.preventDefault());

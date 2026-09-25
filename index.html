@@ -133,7 +133,7 @@
   }
   .login-title { font-size: 16px; font-weight: 600; color: #cde4ff; text-align: center; }
   .login-sub   { font-size: 12px; color: #4a7ab5; text-align: center; margin-top: 3px; }
-  .login-field { width: 100%; }
+  .login-field { width: 100%; margin-bottom: 14px; }
   .login-field label { font-size: 12px; color: #4a7ab5; display: block; margin-bottom: 6px; }
 
   /* ── All inputs — NEVER drag, always editable ── */
@@ -148,22 +148,6 @@
   }
   input[type="text"]:focus { border-color: #00b4d8; }
   input[type="text"]::placeholder { color: #2a4a7a; }
-  input[type="password"] {
-    width: 100%;
-    background: #0f2548;
-    border: 1.5px solid #1a3460;
-    border-radius: 8px;
-    padding: 10px 13px;
-    color: #cde4ff;
-    font-size: 14px;
-    outline: none;
-    -webkit-app-region: no-drag;
-    -webkit-user-select: text;
-    user-select: text;
-    cursor: text;
-  }
-  input[type="password"]:focus { border-color: #00b4d8; }
-  input[type="password"]::placeholder { color: #2a4a7a; }
   #tec {
     position: relative;
     z-index: 5;
@@ -369,6 +353,39 @@
   .hist-line.muted, .hist-block .muted { color: #4a7ab5; font-size: 11px; }
   .hist-empty { text-align: center; color: #4a7ab5; padding: 24px 8px; }
 
+  /* ── Tooltip de ajuda ── */
+  .tip-wrap { position: relative; display: inline-flex; align-items: center; margin-left: 5px; vertical-align: middle; }
+  .tip-ico {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: rgba(0,180,216,.15); border: 1px solid rgba(0,180,216,.35);
+    color: #00b4d8; font-size: 9px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: help; flex-shrink: 0; line-height: 1;
+  }
+  .ci .tip-ico {
+    width: 11px; height: 11px; font-size: 7px;
+  }
+  .tip-box {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    right: auto;
+    background: #071428;
+    border: 1px solid #1a3460;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: #a0c4e8;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .15s;
+    z-index: 200;
+    box-shadow: 0 4px 16px rgba(0,0,0,.4);
+  }
+  .tip-wrap:hover .tip-box { opacity: 1; }
+  .tip-box-dn { top: calc(100% + 4px); bottom: auto; left: 0; right: auto; max-width: 200px; white-space: normal; }
+
   /* ── Modo conferência (pendências x conformidade) ── */
   .mode-strip {
     display: flex;
@@ -434,45 +451,20 @@
 <!-- Body -->
 <div class="body">
 
-  <!-- S0: Login (usuário local + senha) -->
+  <!-- S0: Identificação (nome apenas, sem senha) -->
   <div class="screen visible" id="s0">
     <div class="login-wrap">
       <img class="mascot-lg" src="./assets/mascot.jpg" alt="" />
       <div style="text-align:center">
         <div class="login-title">Conferência de O.S.</div>
-        <div class="login-sub">Implantar Telecom · acesso por operador</div>
+        <div class="login-sub">Implantar Telecom</div>
       </div>
-      <div id="panel-login" style="width:100%">
+      <div style="width:100%">
         <div class="login-field">
-          <label>Usuário</label>
-          <input type="text" id="login-user" placeholder="Ex: maria.silva" autocomplete="username" />
+          <label>Seu nome</label>
+          <input type="text" id="login-name" placeholder="Ex: João Silva" autocomplete="name" />
         </div>
-        <div class="login-field">
-          <label>Senha</label>
-          <input type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" />
-        </div>
-        <button type="button" class="btn bpri" style="width:100%;margin-top:0" onclick="doLogin()">Entrar →</button>
-        <button type="button" class="btn bsec" style="margin-top:10px" onclick="showRegisterPanel(true)">Cadastrar novo operador</button>
-      </div>
-      <div id="panel-register" style="display:none;width:100%">
-        <div class="login-field">
-          <label>Usuário (login único neste computador)</label>
-          <input type="text" id="reg-user" placeholder="Ex: joao.suporte" autocomplete="off" />
-        </div>
-        <div class="login-field">
-          <label>Nome para exibição nas conferências</label>
-          <input type="text" id="reg-display" placeholder="Ex: João Silva" autocomplete="name" />
-        </div>
-        <div class="login-field">
-          <label>Senha</label>
-          <input type="password" id="reg-pass1" placeholder="Mín. 4 caracteres" autocomplete="new-password" />
-        </div>
-        <div class="login-field">
-          <label>Confirmar senha</label>
-          <input type="password" id="reg-pass2" autocomplete="new-password" />
-        </div>
-        <button type="button" class="btn bpri" style="margin-top:0" onclick="doRegister()">Criar cadastro</button>
-        <button type="button" class="btn bsec" style="margin-top:10px" onclick="showRegisterPanel(false)">← Voltar ao login</button>
+        <button type="button" class="btn bpri" style="width:100%;margin-top:6px" onclick="doStart()">Começar →</button>
       </div>
     </div>
   </div>
@@ -501,9 +493,30 @@
       <label>Nome do técnico</label>
       <input type="text" id="tec" placeholder="Ex: João Silva" autocomplete="off" />
     </div>
+    <div class="fg" id="lacre-field">
+      <label>Lacre de identificação <span class="badge-obrig" style="margin-left:4px">obrigatório · 7 dígitos</span><span class="tip-wrap"><span class="tip-ico">ℹ</span><span class="tip-box">IXC: cliente → contrato → desc auxiliar</span></span></label>
+      <input type="text" id="lacre" placeholder="Ex: 1234567" maxlength="7" autocomplete="off" inputmode="numeric" />
+    </div>
+    <div class="fg" id="cto-field">
+      <label>CTO <span class="badge-obrig" style="margin-left:4px">obrigatório</span><span class="tip-wrap"><span class="tip-ico">ℹ</span><span class="tip-box">IXC: cliente → Login → Dados técnicos → caixa de atendimento</span></span></label>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="button" class="mode-chip" id="cto-cad" onclick="setCto('cadastrada')" style="flex:1;padding:8px 4px">Cadastrada</button>
+        <button type="button" class="mode-chip" id="cto-nao" onclick="setCto('nao-cadastrada')" style="flex:1;padding:8px 4px">Não cadastrada</button>
+      </div>
+      <div id="cto-num-wrap" style="display:none;margin-top:8px">
+        <input type="text" id="cto-num" placeholder="Número / sigla da caixa" autocomplete="off" />
+      </div>
+    </div>
+    <div class="fg">
+      <label>ACS <span class="badge-obrig" style="margin-left:4px">obrigatório</span></label>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="button" class="mode-chip" id="acs-hab" onclick="setAcs(true)" style="flex:1;padding:8px 4px">Habilitado</button>
+        <button type="button" class="mode-chip" id="acs-des" onclick="setAcs(false)" style="flex:1;padding:8px 4px">Desabilitado</button>
+      </div>
+    </div>
     <div class="mode-strip">
       <button type="button" class="mode-chip sel" id="mode-chip-pend" onclick="setModoOs(false)">
-        Pendências registradas
+        Conferir item a item
       </button>
       <button type="button" class="mode-chip" id="mode-chip-ok" onclick="setModoOs(true)">
         Sem pendências · em conformidade
@@ -511,7 +524,7 @@
     </div>
     <div id="s2-zone-pend">
       <div class="stitle">
-        Pendências identificadas
+        Itens conferidos (conformes)
         <span class="badge" id="cnt" style="display:none">0</span>
       </div>
       <div class="cgrid" id="chks"></div>
@@ -583,6 +596,13 @@
 <script>
 let items = { instalacao: [], manutencao: [] };
 
+const ITEM_TIPS = {
+  'inst-sinal-status':    'Sinal via aplicativo somente em caso de ONU bridge + roteador',
+  'inst-teste-velocidade': '90% da banda contratada',
+  'man-teste-velocidade':  '90% da banda contratada',
+  'inst-foto-instalacao':  'Ampla e equipamento em local seguro'
+};
+
 async function loadChecklist() {
   const api = window.electronAPI;
   if (!api || typeof api.checklistGet !== 'function') return;
@@ -597,6 +617,8 @@ loadChecklist();
 
 let tipo=null, operador='', lastText='';
 let conferenciaSemPendencias=false;
+let acsEnabled=null;
+let ctoStatus=null;
 let currentUserId=null;
 
 function setModoOs(semPend) {
@@ -607,12 +629,28 @@ function setModoOs(semPend) {
   document.getElementById('s2-zone-msg-ok').style.display = conferenciaSemPendencias ? 'block' : 'none';
 }
 
+function setCto(val) {
+  ctoStatus = val;
+  document.getElementById('cto-cad').classList.toggle('sel', val === 'cadastrada');
+  document.getElementById('cto-nao').classList.toggle('sel', val === 'nao-cadastrada');
+  const wrap = document.getElementById('cto-num-wrap');
+  wrap.style.display = val === 'cadastrada' ? 'block' : 'none';
+  if (val !== 'cadastrada') document.getElementById('cto-num').value = '';
+}
+
+function setAcs(val) {
+  acsEnabled = val;
+  document.getElementById('acs-hab').classList.toggle('sel', val === true);
+  document.getElementById('acs-des').classList.toggle('sel', val === false);
+}
+
 function syncPendBadge() {
   if(!tipo || conferenciaSemPendencias) return;
-  const total=items[tipo].filter((_,j)=>document.getElementById('ck'+j)?.checked).length;
+  const total=items[tipo].length;
+  const marcados=items[tipo].filter((_,j)=>document.getElementById('ck'+j)?.checked).length;
   const badge=document.getElementById('cnt');
   badge.style.display=total>0?'inline':'none';
-  badge.textContent=total+(total===1?' item':' itens');
+  badge.textContent=marcados+' de '+total+(total===1?' item':' itens');
 }
 
 /* ===== Histórico & contador (semana: segunda = 1º dia, domingo = 7º) · por operador ===== */
@@ -1073,72 +1111,38 @@ async function importHistoryBackup() {
 
 function hideWin(){ if(window.electronAPI) window.electronAPI.hideWindow(); }
 
-function showRegisterPanel(on) {
-  document.getElementById('panel-login').style.display = on ? 'none' : 'block';
-  document.getElementById('panel-register').style.display = on ? 'block' : 'none';
-  if (on) setTimeout(() => document.getElementById('reg-user').focus(), 50);
-  else setTimeout(() => document.getElementById('login-user').focus(), 50);
+const IDENTITY_KEY = 'conferencia-os-identity';
+
+function loadIdentity() {
+  try { const r = localStorage.getItem(IDENTITY_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
 }
 
-async function doRegister() {
-  const api = window.electronAPI;
-  if (!api || typeof api.authRegister !== 'function') {
-    alert('Abra o aplicativo pelo Conferência de O.S. (Electron).');
-    return;
-  }
-  const username = document.getElementById('reg-user').value.trim();
-  const displayName = document.getElementById('reg-display').value.trim();
-  const p1 = document.getElementById('reg-pass1').value;
-  const p2 = document.getElementById('reg-pass2').value;
-  if (p1 !== p2) {
-    alert('As senhas não coincidem.');
-    return;
-  }
-  const res = await api.authRegister({ username, displayName, password: p1 });
-  if (!res.ok) {
-    alert(res.error || 'Cadastro não realizado.');
-    return;
-  }
-  document.getElementById('reg-pass1').value = '';
-  document.getElementById('reg-pass2').value = '';
-  document.getElementById('login-user').value = res.user.username || username;
-  showRegisterPanel(false);
-  alert('Cadastro criado. Entre com usuário e senha.');
-  document.getElementById('login-pass').focus();
+function saveIdentity(name) {
+  const existing = loadIdentity();
+  const id = (existing && existing.id) || crypto.randomUUID();
+  const identity = { id, name };
+  localStorage.setItem(IDENTITY_KEY, JSON.stringify(identity));
+  return identity;
 }
 
-/* LOGIN */
-async function doLogin() {
-  const api = window.electronAPI;
-  if (!api || typeof api.authLogin !== 'function') {
-    alert('Abra o aplicativo pelo Conferência de O.S. (Electron).');
-    return;
-  }
-  const username = document.getElementById('login-user').value.trim();
-  const password = document.getElementById('login-pass').value;
-  if (!username) {
-    document.getElementById('login-user').focus();
-    return;
-  }
-  const res = await api.authLogin({ username, password });
-  if (!res.ok) {
-    alert(res.error || 'Não foi possível entrar.');
-    document.getElementById('login-pass').value = '';
-    document.getElementById('login-pass').focus();
-    return;
-  }
-  currentUserId = res.user.id;
-  operador = res.user.displayName;
-  document.getElementById('login-pass').value = '';
+async function setIdentity(id, name) {
+  currentUserId = id;
+  operador = name;
   document.getElementById('user-badge-name').textContent = operador;
   document.getElementById('user-badge-avatar').textContent = ([...operador][0] || '?').toUpperCase();
   document.getElementById('user-badge').style.display = 'flex';
   document.getElementById('steps-bar').style.display = 'flex';
   document.getElementById('stats-bar').style.display = 'flex';
-  document.getElementById('checklist-btn').style.display = 'flex';
   await hydrateHistoryFromDiskIfEmpty();
   refreshStatsUi();
   setScr(1);
+}
+
+function doStart() {
+  const name = document.getElementById('login-name').value.trim();
+  if (!name) { document.getElementById('login-name').focus(); return; }
+  const identity = saveIdentity(name);
+  setIdentity(identity.id, identity.name);
 }
 
 /** Se não houver histórico no localStorage para este operador, tenta recuperar do espelho em disco. */
@@ -1156,18 +1160,17 @@ async function hydrateHistoryFromDiskIfEmpty() {
 }
 
 function logout() {
+  localStorage.removeItem(IDENTITY_KEY);
   currentUserId = null;
   operador = '';
   tipo = null;
   conferenciaSemPendencias = false;
   setModoOs(false);
-  document.getElementById('login-pass').value = '';
-  showRegisterPanel(false);
+  document.getElementById('login-name').value = '';
   document.getElementById('user-badge-avatar').textContent = '';
   document.getElementById('user-badge').style.display = 'none';
   document.getElementById('steps-bar').style.display = 'none';
   document.getElementById('stats-bar').style.display = 'none';
-  document.getElementById('checklist-btn').style.display = 'none';
   document.getElementById('ci-inst').classList.remove('sel');
   document.getElementById('ci-man').classList.remove('sel');
   setScr(0);
@@ -1186,7 +1189,7 @@ function setScr(n){
       if(i+1===n) el.classList.add('active');
     });
   }
-  if (n === 0) setTimeout(() => document.getElementById('login-user').focus(), 80);
+  if (n === 0) setTimeout(() => document.getElementById('login-name').focus(), 80);
   if (n === 2) {
     const tecEl = document.getElementById('tec');
     if (tecEl) {
@@ -1217,7 +1220,12 @@ function go2(preserve){
   if(!tipo){ alert('Selecione o tipo da O.S. primeiro.'); return; }
   if(!preserve){
     conferenciaSemPendencias=false;
+    acsEnabled=null;
+    ctoStatus=null;
     setModoOs(false);
+    setAcs(null);
+    setCto(null);
+    document.getElementById('lacre').value='';
     const c=document.getElementById('chks');
     c.innerHTML='';
     document.getElementById('cnt').style.display='none';
@@ -1239,6 +1247,15 @@ function go2(preserve){
         badge.textContent='obrigatório';
         span.append(' ',badge);
       }
+      const tip=ITEM_TIPS[item.id];
+      if(tip){
+        const tw=document.createElement('span'); tw.className='tip-wrap';
+        tw.addEventListener('click',e=>e.stopPropagation());
+        const ti=document.createElement('span'); ti.className='tip-ico'; ti.textContent='ℹ';
+        const tb=document.createElement('span'); tb.className='tip-box tip-box-dn'; tb.textContent=tip;
+        tw.appendChild(ti); tw.appendChild(tb);
+        span.append(' ',tw);
+      }
 
       d.appendChild(chk); d.appendChild(span);
 
@@ -1248,6 +1265,14 @@ function go2(preserve){
       c.appendChild(d);
     });
   }
+  const isInst = tipo === 'instalacao';
+  document.getElementById('lacre-field').style.display = isInst ? 'block' : 'none';
+  document.getElementById('cto-field').style.display = isInst ? 'block' : 'none';
+  if (!isInst) {
+    document.getElementById('lacre').value = '';
+    setCto(null);
+    ctoStatus = null;
+  }
   syncPendBadge();
   setScr(2);
 }
@@ -1255,26 +1280,49 @@ function go2(preserve){
 function tog(i){
   const chk=document.getElementById('ck'+i);
   document.getElementById('ci'+i).classList.toggle('checked',chk.checked);
-  const total=items[tipo].filter((_,j)=>document.getElementById('ck'+j)?.checked).length;
-  const badge=document.getElementById('cnt');
-  badge.style.display=total>0?'inline':'none';
-  badge.textContent=total+(total===1?' item':' itens');
+  syncPendBadge();
 }
 
 function buildText(){
   const tec=document.getElementById('tec').value.trim();
   if(!tec){ document.getElementById('tec').focus(); alert('Informe o nome do técnico.'); return null; }
+
+  let lacreVal='';
+  if(tipo==='instalacao'){
+    lacreVal=document.getElementById('lacre').value.trim();
+    if(!/^\d{7}$/.test(lacreVal)){ document.getElementById('lacre').focus(); alert('O campo Lacre deve ter exatamente 7 dígitos numéricos.'); return null; }
+  }
+
+  let ctoLine='';
+  if(tipo==='instalacao'){
+    if(ctoStatus===null){ alert('Selecione se a CTO está Cadastrada ou Não cadastrada.'); return null; }
+    if(ctoStatus==='cadastrada'){
+      const ctoNum=document.getElementById('cto-num').value.trim();
+      if(!ctoNum){ document.getElementById('cto-num').focus(); alert('Informe o número / sigla da caixa da CTO.'); return null; }
+      ctoLine=`\nCTO: Cadastrada — Caixa ${ctoNum}`;
+    } else {
+      ctoLine='\nCTO: Não cadastrada';
+    }
+  }
+
+  if(acsEnabled===null){ alert('Selecione se o ACS está Habilitado ou Desabilitado.'); return null; }
+  const acsLabel=acsEnabled?'Habilitado':'Desabilitado';
+
   const label=tipo==='instalacao'?'Instalação':'Manutenção';
+  const lacreLineTec=lacreVal?`\nLacre: ${lacreVal}`:'';
   const now=new Date();
   const data=now.toLocaleDateString('pt-BR');
   const hora=now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   if(conferenciaSemPendencias){
-    return `O.S. de acordo com os parâmetros determinados.\n\nTipo de serviço: ${label}\nTécnico: ${tec}\n\nConferido por: ${operador} — ${data} às ${hora}`;
+    return `O.S. de acordo com os parâmetros determinados.\n\nTipo de serviço: ${label}\nTécnico: ${tec}${lacreLineTec}${ctoLine}\nACS: ${acsLabel}\n\nConferido por: ${operador} — ${data} às ${hora}`;
   }
-  const sel=items[tipo].filter((_,i)=>document.getElementById('ck'+i)?.checked);
-  if(!sel.length){ alert('Selecione ao menos uma pendência.'); return null; }
-  const lista=sel.map((s,i)=>`${i+1}. ${s.t}${s.obr?' (item obrigatório)':''}`).join('\n');
-  return `Conferência de O.S. — ${label}\nTécnico: ${tec}\n\nPendências identificadas:\n${lista}\n\nItem(ns) não conforme(s) com o padrão estabelecido.\nConferido por: ${operador} — ${data} às ${hora}`;
+  if(!items[tipo].length){ alert('Nenhum item no checklist para conferir.'); return null; }
+  const pendentes=items[tipo].filter((_,i)=>!document.getElementById('ck'+i)?.checked);
+  if(!pendentes.length){
+    return `O.S. de acordo com os parâmetros determinados.\n\nTipo de serviço: ${label}\nTécnico: ${tec}${lacreLineTec}${ctoLine}\nACS: ${acsLabel}\n\nConferido por: ${operador} — ${data} às ${hora}`;
+  }
+  const lista=pendentes.map((s,i)=>`${i+1}. ${s.t}${s.obr?' (item obrigatório)':''}`).join('\n');
+  return `Conferência de O.S. — ${label}\nTécnico: ${tec}${lacreLineTec}${ctoLine}\nACS: ${acsLabel}\n\nPendências identificadas:\n${lista}\n\nItem(ns) não conforme(s) com o padrão estabelecido.\nConferido por: ${operador} — ${data} às ${hora}`;
 }
 
 function copyText(txt){
@@ -1288,11 +1336,14 @@ function copyText(txt){
 
 function go3(){
   const txt=buildText(); if(!txt) return;
+  const semPendReais = conferenciaSemPendencias ||
+    (items[tipo] && items[tipo].length > 0 &&
+     items[tipo].every((_,i)=>document.getElementById('ck'+i)?.checked));
   recordConference({
     tipo,
     tecnico: document.getElementById('tec').value.trim(),
     operador,
-    resultado: conferenciaSemPendencias ? 'conforme' : 'pendencias'
+    resultado: semPendReais ? 'conforme' : 'pendencias'
   });
   lastText=txt;
   document.getElementById('rtxt').textContent=txt;
@@ -1310,20 +1361,27 @@ function copyAgain(){
 function reset(){
   tipo=null;
   conferenciaSemPendencias=false;
+  acsEnabled=null;
+  ctoStatus=null;
   setModoOs(false);
+  setAcs(null);
+  setCto(null);
   document.getElementById('ci-inst').classList.remove('sel');
   document.getElementById('ci-man').classList.remove('sel');
   document.getElementById('tec').value='';
+  document.getElementById('lacre').value='';
   lastText='';
   setScr(1);
 }
 
-/* Enter nos inputs de login */
-document.getElementById('login-pass').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') doLogin();
+/* Lacre: aceita apenas dígitos */
+document.getElementById('lacre').addEventListener('input', (e) => {
+  e.target.value = e.target.value.replace(/\D/g, '');
 });
-document.getElementById('login-user').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') document.getElementById('login-pass').focus();
+
+/* Enter no campo de nome */
+document.getElementById('login-name').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doStart();
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && document.getElementById('s2').classList.contains('visible')) go3();
@@ -1344,7 +1402,14 @@ document.addEventListener('keydown', (e) => {
   );
 })();
 
-refreshStatsUi();
+(async function initApp() {
+  const identity = loadIdentity();
+  if (identity && identity.id && identity.name) {
+    await setIdentity(identity.id, identity.name);
+  } else {
+    setTimeout(() => document.getElementById('login-name').focus(), 80);
+  }
+})();
 </script>
 </body>
 </html>

@@ -8,7 +8,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   historyExport: (payload) => ipcRenderer.invoke('history-export', payload),
   historyImport: () => ipcRenderer.invoke('history-import'),
   checklistGet: () => ipcRenderer.invoke('checklist-get'),
-  checklistSave: (payload) => ipcRenderer.invoke('checklist-save', payload),
-  authRegister: (p) => ipcRenderer.invoke('auth-register', p),
-  authLogin: (p) => ipcRenderer.invoke('auth-login', p)
+  checklistSave: (payload) => ipcRenderer.invoke('checklist-save', payload)
 });
